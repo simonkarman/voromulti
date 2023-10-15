@@ -1,27 +1,38 @@
 "use client";
-import { KrmxProviderWithStore, useKrmx } from '@krmx/client';
-import { useState } from 'react';
+import { KrmxProvider, useKrmx } from '@krmx/client';
+import { useEffect, useState } from 'react';
+import { AppState, useAppDispatch, voromultiSlice } from './store';
+import { Provider } from 'react-redux'
+import { store } from './store'
+import { Voromulti } from './Voromulti';
 
 interface Message {
   type: string;
   payload?: unknown;
 }
- 
-// Note: Don't use `KrmxProviderWithStore` if you are already creating a redux store in your app.
-//       In that case, add the exported `krmxSlice` to your store and use `KrmxProvider` directly.
-const { KrmxProvider } = KrmxProviderWithStore();
-export default function MyApp() {
-  const [serverUrl] = useState('ws://localhost:8082');
-  return (
-    <KrmxProvider
-      serverUrl={serverUrl}
-      onMessage={(message: Message) => {
-        console.info(message);
-      }}
-    >
-      <MyComponent />
-    </KrmxProvider>
-  );
+
+export default function MyApplication() {
+  return <Provider store={store}>
+    <MyApp />
+  </Provider>
+}
+
+export function MyApp() {
+  const [counter, setCounter] = useState(0);
+  const serverUrl = `ws://localhost:8082?counter=${counter}`;
+  const dispatch = useAppDispatch();
+  return <>
+    {/* <button onClick={() => setCounter(counter + 1)}>Reconnect</button> */}
+    <main className={'container mx-auto grow px-4'}>
+      <KrmxProvider
+        serverUrl={serverUrl}
+        onMessage={dispatch}
+        krmxStateSelector={(state: AppState) => state.krmx}
+      >
+        <MyComponent />
+      </KrmxProvider>
+    </main>
+  </>;
 }
 
 function LoginForm(props: { link: (username: string) => void, rejectionReason?: string }) {
@@ -56,7 +67,20 @@ function LoginForm(props: { link: (username: string) => void, rejectionReason?: 
 }
 
 function MyComponent() {
-  const {username, isConnected, isLinked, link, rejectionReason, send, leave, users } = useKrmx();
+  const {username, reconnect, isConnected, isLinked, link, rejectionReason, send, leave, users } = useKrmx();
+  const dispatch = useAppDispatch();
+  useEffect(() => {
+    if (!isLinked) {
+      dispatch(voromultiSlice.actions.reset());
+    }
+  }, [dispatch, isConnected, isLinked]);
+  useEffect(() => {
+    const timer = setTimeout(() => reconnect(), 1000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isConnected, reconnect]);
+
   if (!isConnected) {
     // Your logic for when you're not connected to the server goes here
     return <p>No connection to the server...</p>;
@@ -67,20 +91,23 @@ function MyComponent() {
   }
   // Your logic for when you're ready to go goes here
   return (
-    <div>
+    <div className='py-4'>
+      <div className='float-right'>
+        <h2 className='text-lg font-bold'>Users</h2>
+        <ul>
+          {Object.entries(users)
+            .map(([otherUsername, { isLinked }]) => (
+              <li key={otherUsername}>
+                {isLinked ? '🟢' : '🔴'} {otherUsername}
+              </li>)
+            )}
+        </ul>
+        <button className='mt-3 py-2 px-4 border rounded bg-gray-100' onClick={leave}>Leave</button>
+      </div>
       <p>
         Welcome <strong>{username}</strong>!
       </p>
-      <button onClick={leave}>Leave</button>
-      <h2>Users</h2>
-      <ul>
-        {Object.entries(users)
-          .map(([otherUsername, { isLinked }]) => (
-            <li key={otherUsername}>
-              {isLinked ? '🟢' : '🔴'} {otherUsername}
-            </li>)
-          )}
-      </ul>
+      <Voromulti />
     </div>
   );
 }

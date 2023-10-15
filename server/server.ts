@@ -13,7 +13,6 @@ type VoromultiUnclaimMessage = {
   type: 'voromulti/unclaim';
   payload: {
     username: string;
-    siteIndex: number;
   };
 };
 
@@ -61,8 +60,10 @@ const unclaimedSites = Array.from(Array(maxNumberOfPlayers).keys());
 const siteLocations: Point[] = generateSites(maxNumberOfPlayers);
 
 const computeEdges = (): string[] => {
+  const fromTime = Date.now();
   const voronoi = Delaunay.from(siteLocations.map(({ x, y }) => [x, y]))
     .voronoi([0, 0, 1, 1]);
+  console.info('voronoi', Date.now() - fromTime, 'ms');
   return Array.from(Array(siteLocations.length).keys()).map(i => voronoi.renderCell(i));
 }
 
@@ -80,16 +81,18 @@ server.on('link', (username) => {
   server.send<VoromultiSitesMessage>(username, { type: 'voromulti/sites', payload: { locations: siteLocations, edges: computeEdges() } });
 });
 server.on('leave', (username) => {
-  server.broadcast<VoromultiUnclaimMessage>({ type: 'voromulti/unclaim', payload: { username, siteIndex: siteIndexByUser[username] }});
+  server.broadcast<VoromultiUnclaimMessage>({ type: 'voromulti/unclaim', payload: { username }});
   unclaimedSites.push(siteIndexByUser[username]);
   delete siteIndexByUser[username];
 });
 server.on('message', (username, message) => {
-  console.debug(`[debug] [my-app] ${username} sent ${message.type}`);
   switch (message.type) {
   case 'voromulti/position':
     siteLocations[siteIndexByUser[username]] = (message as VoromultiPositionMessage).payload;
     server.broadcast<VoromultiSitesMessage>({ type: 'voromulti/sites', payload: { locations: siteLocations, edges: computeEdges() } });
+    break;
+  default:
+    console.debug(`[debug] [my-app] ${username} sent unhandled ${message.type}`);
     break;
   }
 });
