@@ -18,11 +18,9 @@ export default function MyApplication() {
 }
 
 export function MyApp() {
-  const [counter, setCounter] = useState(0);
-  const serverUrl = `ws://localhost:8082?counter=${counter}`;
+  const serverUrl = `ws://${process.env.NEXT_PUBLIC_SERVER_URL ?? 'localhost:8082'}/game?voromulti&version=0.0.1`;
   const dispatch = useAppDispatch();
   return <>
-    {/* <button onClick={() => setCounter(counter + 1)}>Reconnect</button> */}
     <main className={'container mx-auto grow px-4'}>
       <KrmxProvider
         serverUrl={serverUrl}
@@ -75,7 +73,7 @@ function MyComponent() {
     }
   }, [dispatch, isConnected, isLinked]);
   useEffect(() => {
-    const timer = setTimeout(() => reconnect(), 1000);
+    const timer = setTimeout(() => reconnect(), 5000);
     return () => {
       clearTimeout(timer);
     };

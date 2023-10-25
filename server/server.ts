@@ -1,5 +1,14 @@
+import { createServer as createHttpServer } from 'http';
 import { createServer, Props } from '@krmx/server';
 import { Delaunay } from 'd3';
+import express from 'express';
+
+// Create http server
+const expressServer = express();
+expressServer.get('/health', (_, res) => {
+  res.send('Server is running!');
+});
+const httpServer = createHttpServer(expressServer);
 
 type VoromultiClaimMessage = {
   type: 'voromulti/claim';
@@ -33,13 +42,15 @@ type VoromultiPositionMessage = {
   type: 'voromulti/position';
   payload: Point;
 };
- 
+
 type Point = {
   x: number;
   y: number;
 };
 
-const props: Props = {};
+const props: Props = {
+  http: { server: httpServer, path: 'game', queryParams: { voromulti: true, version: '0.0.1' } },
+};
 const server = createServer(props);
 
 const generateSites = (numberOfSites: number): Point[] => {
@@ -96,5 +107,5 @@ server.on('message', (username, message) => {
     break;
   }
 });
- 
+
 server.listen(8082);
