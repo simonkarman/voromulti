@@ -62,9 +62,6 @@ export class VoromultiStack extends Stack {
       internetFacing: true,
     });
     loadBalancer.addRedirect(); // defaults to HTTP -> HTTPS redirect
-    new CfnOutput(this, 'LoadBalancerDnsName', {
-      value: loadBalancer.loadBalancerDnsName,
-    });
     const rootZone = route53.HostedZone.fromHostedZoneAttributes(this, 'RootZone', {
       hostedZoneId: getEnvVar('VOROMULTI_ROOT_ZONE_ID'),
       zoneName: getEnvVar('VOROMULTI_ROOT_ZONE_DOMAIN_NAME'),

@@ -1,7 +1,7 @@
 "use client";
 import { KrmxProvider, useKrmx } from '@krmx/client';
 import { useEffect, useState } from 'react';
-import { AppState, useAppDispatch, voromultiSlice } from './store';
+import { useAppDispatch, voromultiSlice } from './store';
 import { Provider } from 'react-redux'
 import { store } from './store'
 import { Voromulti } from './Voromulti';
@@ -13,11 +13,11 @@ interface Message {
 
 export default function MyApplication() {
   return <Provider store={store}>
-    <MyApp />
+    <KrmxContainer />
   </Provider>
 }
 
-export function MyApp() {
+function KrmxContainer() {
   const serverUrl = `${process.env.NEXT_PUBLIC_KRMX_PROTOCOL ?? 'ws'}://${process.env.NEXT_PUBLIC_KRMX_SERVER ?? 'localhost:8082'}/game?voromulti&version=0.0.1`;
   const dispatch = useAppDispatch();
   return <>
@@ -25,7 +25,6 @@ export function MyApp() {
       <KrmxProvider
         serverUrl={serverUrl}
         onMessage={dispatch}
-        krmxStateSelector={(state: AppState) => state.krmx}
       >
         <MyComponent />
       </KrmxProvider>

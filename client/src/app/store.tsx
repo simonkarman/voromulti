@@ -1,8 +1,7 @@
-import { krmxSlice } from '@krmx/client';
 import { configureStore } from '@reduxjs/toolkit';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
- 
+
 type Point = {
   x: number;
   y: number;
@@ -66,7 +65,6 @@ export const voromultiSlice = createSlice({
 
 export const store = configureStore({
   reducer: {
-    krmx: krmxSlice.reducer,
     voromulti: voromultiSlice.reducer,
   },
 });

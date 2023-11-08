@@ -30,7 +30,7 @@ export function Voromulti() {
       send(bbox, e.touches[0].clientX, e.touches[0].clientY);
     }
   }
-  const send = (bbox, clientX, clientY) => {
+  const send = (bbox: DOMRect, clientX: number, clientY: number) => {
     const x = (clientX - bbox.x) / bbox.width;
     const y = (clientY - bbox.y) / bbox.height;
     if (lastSend + 25 < Date.now()) {
