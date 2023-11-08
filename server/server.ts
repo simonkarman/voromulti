@@ -69,8 +69,22 @@ const maxNumberOfPlayers = 10;
 const siteIndexByUser: { [username: string]: number } = {};
 const unclaimedSites = Array.from(Array(maxNumberOfPlayers).keys());
 const siteLocations: Point[] = generateSites(maxNumberOfPlayers);
+const siteVelocities: Point[] = Array.from(Array(maxNumberOfPlayers).keys()).map(() => {
+  return {
+    x: Math.random() * 0.001,
+    y: Math.random() * 0.001,
+  }
+});
 
 const computeEdges = (): string[] => {
+  unclaimedSites.forEach(site => {
+    siteLocations[site] = {
+      x: siteLocations[site].x + siteVelocities[site].x,
+      y: siteLocations[site].y + siteVelocities[site].y,
+    };
+    siteLocations[site].x = (siteLocations[site].x + 1) % 1;
+    siteLocations[site].y = (siteLocations[site].y + 1) % 1;
+  });
   const fromTime = Date.now();
   const voronoi = Delaunay.from(siteLocations.map(({ x, y }) => [x, y]))
     .voronoi([0, 0, 1, 1]);

@@ -2,7 +2,7 @@
 
 ```bash
 export AWS_PROFILE=xebia-playground
-export VOROMULTI_BASTION_PUBLIC_IP=$(curl ifconfig.me)
+export VOROMULTI_BASTION_PUBLIC_IP=$(curl -s ifconfig.me)
 export VOROMULTI_BASTION_KEY_NAME='...'
 export VOROMULTI_ROOT_ZONE_ID="..."
 export VOROMULTI_ROOT_ZONE_DOMAIN_NAME="my.example.org"

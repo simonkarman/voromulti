@@ -1,6 +1,13 @@
 import {
-  aws_ec2 as ec2, aws_ecs as ecs, aws_elasticloadbalancingv2 as elbv2,
-  aws_route53 as route53, aws_route53_targets as route53targets, CfnOutput, Stack, StackProps, Fn,
+  aws_certificatemanager as cm,
+  aws_ec2 as ec2,
+  aws_ecs as ecs,
+  aws_elasticloadbalancingv2 as elbv2,
+  aws_route53 as route53,
+  aws_route53_targets as route53targets,
+  CfnOutput,
+  Stack,
+  StackProps,
 } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
@@ -20,10 +27,10 @@ export class VoromultiStack extends Stack {
     super(scope, id, props);
 
     const cluster = new ecs.Cluster(this, 'Cluster');
-    this.createBastion(cluster);
-    const loadBalancer = this.createLoadBalancer(cluster);
-    this.createServer(cluster, loadBalancer);
-    this.createClient(cluster, loadBalancer);
+    // this.createBastion(cluster); // not needed for now
+    const listener = this.createLoadBalancer(cluster);
+    this.createServer(cluster, listener);
+    this.createClient(cluster, listener);
   }
 
   private createBastion(cluster: ecs.Cluster) {
@@ -45,9 +52,7 @@ export class VoromultiStack extends Stack {
     } else {
       console.info(`[INFO] not adding a public ip to security group of bastion for ssh (port 22) as VOROMULTI_BASTION_PUBLIC_IP was not provided`);
     }
-    new CfnOutput(this, 'BastionIp', {
-      value: bastion.instancePublicIp,
-    });
+    new CfnOutput(this, 'BastionIp', { value: bastion.instancePublicIp });
   }
 
   private createLoadBalancer(cluster: ecs.Cluster) {
@@ -55,6 +60,10 @@ export class VoromultiStack extends Stack {
       vpc: cluster.vpc,
       vpcSubnets: {subnetType: ec2.SubnetType.PUBLIC},
       internetFacing: true,
+    });
+    loadBalancer.addRedirect(); // defaults to HTTP -> HTTPS redirect
+    new CfnOutput(this, 'LoadBalancerDnsName', {
+      value: loadBalancer.loadBalancerDnsName,
     });
     const rootZone = route53.HostedZone.fromHostedZoneAttributes(this, 'RootZone', {
       hostedZoneId: getEnvVar('VOROMULTI_ROOT_ZONE_ID'),
@@ -68,19 +77,26 @@ export class VoromultiStack extends Stack {
       recordName: 'voromulti',
       values: hostedZone.hostedZoneNameServers || [],
     })
-    new route53.ARecord(this, 'DnsRecord', {
+    new route53.ARecord(this, 'ARecord', {
       zone: hostedZone,
-      recordName: 'elb',
       target: route53.RecordTarget.fromAlias(new route53targets.LoadBalancerTarget(loadBalancer)),
     });
-    return loadBalancer;
+    const certificate = new cm.Certificate(this, 'Certificate', {
+      domainName: hostedZone.zoneName,
+      validation: cm.CertificateValidation.fromDns(hostedZone),
+    })
+    return loadBalancer.addListener('Listener', {
+      port: 443,
+      protocol: elbv2.ApplicationProtocol.HTTPS,
+      certificates: [elbv2.ListenerCertificate.fromCertificateManager(certificate)],
+    });
   }
 
-  private createServer(cluster: ecs.Cluster, loadBalancer: elbv2.ApplicationLoadBalancer) {
+  private createServer(cluster: ecs.Cluster, listener: elbv2.ApplicationListener) {
     const serverTaskDefinition = new ecs.TaskDefinition(this, 'ServerTask', {
       compatibility: ecs.Compatibility.FARGATE,
-      cpu: '1024',
-      memoryMiB: '2048',
+      cpu: '256',
+      memoryMiB: '512',
     });
     serverTaskDefinition.addContainer('Server', {
       image: ecs.ContainerImage.fromAsset('../server'),
@@ -92,51 +108,46 @@ export class VoromultiStack extends Stack {
       cluster,
       taskDefinition: serverTaskDefinition,
     });
-    const serverListener = loadBalancer.addListener('Server', {
-      port: 8082,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-    });
-    serverListener.addTargets('Server', {
-      port: 8082,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      healthCheck: { path: '/health', port: '8082' },
+    listener.addTargets('Server', {
+      conditions: [elbv2.ListenerCondition.pathPatterns(['/game'])],
+      priority: 1,
       targets: [server.loadBalancerTarget({
         containerName: 'Server',
         containerPort: 8082,
       })],
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      port: 8082,
+      healthCheck: { path: '/health', port: '8082' },
     });
   }
 
-  private createClient(cluster: ecs.Cluster, loadBalancer: elbv2.ApplicationLoadBalancer) {
+  private createClient(cluster: ecs.Cluster, listener: elbv2.ApplicationListener) {
     const clientTaskDefinition = new ecs.TaskDefinition(this, 'ClientTask', {
       compatibility: ecs.Compatibility.FARGATE,
-      cpu: '1024',
-      memoryMiB: '2048',
+      cpu: '512',
+      memoryMiB: '1024',
     });
     clientTaskDefinition.addContainer('Client', {
       image: ecs.ContainerImage.fromAsset('../client'),
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDriver.awsLogs({streamPrefix: 'voromulti-client'}),
       environment: {
-        'NEXT_PUBLIC_SERVER_URL': `${loadBalancer.loadBalancerDnsName}:8082`,
+        NEXT_PUBLIC_KRMX_PROTOCOL: 'wss',
+        NEXT_PUBLIC_KRMX_SERVER: `voromulti.${getEnvVar('VOROMULTI_ROOT_ZONE_DOMAIN_NAME')}`,
       },
     });
     const client = new ecs.FargateService(this, 'Client', {
       cluster,
       taskDefinition: clientTaskDefinition,
     });
-    const clientListener = loadBalancer.addListener('Client', {
-      port: 80,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-    });
-    clientListener.addTargets('Client', {
-      port: 3000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      healthCheck: { path: '/', port: '3000' },
+    listener.addTargets('Client', {
       targets: [client.loadBalancerTarget({
         containerName: 'Client',
         containerPort: 3000,
       })],
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      port: 3000,
+      healthCheck: { path: '/', port: '3000' },
     });
   }
 }
