@@ -125,13 +125,14 @@ export class VoromultiStack extends Stack {
       memoryMiB: '1024',
     });
     clientTaskDefinition.addContainer('Client', {
-      image: ecs.ContainerImage.fromAsset('../client'),
+      image: ecs.ContainerImage.fromAsset('../client', {
+        buildArgs: {
+          KRMX_PROTOCOL: 'wss',
+          KRMX_SERVER_URL: `voromulti.${getEnvVar('VOROMULTI_ROOT_ZONE_DOMAIN_NAME')}`,
+        },
+      }),
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDriver.awsLogs({streamPrefix: 'voromulti-client'}),
-      environment: {
-        NEXT_PUBLIC_KRMX_PROTOCOL: 'wss',
-        NEXT_PUBLIC_KRMX_SERVER: `voromulti.${getEnvVar('VOROMULTI_ROOT_ZONE_DOMAIN_NAME')}`,
-      },
     });
     const client = new ecs.FargateService(this, 'Client', {
       cluster,

@@ -2,6 +2,10 @@ FROM node:18 as builder
 COPY package*.json ./
 RUN npm install
 COPY . .
+ARG KRMX_PROTOCOL=ws
+ENV NEXT_PUBLIC_KRMX_PROTOCOL $KRMX_PROTOCOL
+ARG KRMX_SERVER_URL=localhost:8082
+ENV NEXT_PUBLIC_KRMX_SERVER $KRMX_SERVER_URL
 RUN npm run build
 ENV PORT 3000
 CMD [ "npm", "start" ]
